@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Домашки МГУ</title>
+<style>
+:root{--bg:#f4f5f9;--card:#fff;--ink:#1b1f2a;--mut:#6b7280;--pri:#1f3f8f;--onpri:#fff;--acc:#c9a227;--bad:#c0392b;--ok:#2e8b57;--line:#e3e6ee;--chip:#e9edf8;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12141b;--card:#1c202b;--ink:#eceef4;--mut:#9aa1b2;--pri:#7d9cf0;--onpri:#10152a;--line:#2b3040;--chip:#262c3d}}
+:root[data-theme="dark"]{--bg:#12141b;--card:#1c202b;--ink:#eceef4;--mut:#9aa1b2;--pri:#7d9cf0;--onpri:#10152a;--line:#2b3040;--chip:#262c3d}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+#app{max-width:720px;margin:0 auto;padding:12px 14px 96px}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;border-radius:10px;padding:9px 14px;background:var(--chip);color:var(--ink)}
+button.p{background:var(--pri);color:var(--onpri);font-weight:600}
+button.d{color:var(--bad)}button.s{padding:5px 9px;font-size:13px}
+input[type=text],input[type=date],select,textarea{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg)}
+textarea{min-height:70px;resize:vertical}
+label.f{display:block;margin:10px 0 0;font-size:13px;color:var(--mut)}label.f>*{margin-top:4px;color:var(--ink)}
+header{display:flex;align-items:center;gap:8px;justify-content:space-between;margin-bottom:12px}
+.gb{font-weight:700;font-size:18px;background:none;padding:6px 0;text-align:left}
+.badge{font-size:11px;background:var(--acc);color:#222;border-radius:20px;padding:2px 8px;margin-left:6px;vertical-align:middle}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:6px}
+.chip{white-space:nowrap;border-radius:20px;padding:7px 13px;background:var(--chip)}
+.chip.on{background:var(--pri);color:var(--onpri)}.chip small{opacity:.7;margin-left:4px}
+h3.g{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mut);margin:18px 0 8px}
+h3.g.bad{color:var(--bad)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px;display:flex;gap:10px}
+.card.dn{opacity:.55}.card.dn h4{text-decoration:line-through}
+.card .bd{flex:1;min-width:0}.card h4{margin:4px 0;font-size:16px}
+.card input[type=checkbox]{width:22px;height:22px;margin-top:2px;accent-color:var(--ok)}
+.tag{font-size:12px;font-weight:600;color:var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);border-radius:6px;padding:2px 8px}
+.due{font-size:13px;color:var(--mut);margin-left:6px}.due.bad{color:var(--bad)}
+.desc{white-space:pre-wrap;color:var(--mut);font-size:14px;margin:4px 0}
+.att{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.att a{font-size:13px;background:var(--chip);color:var(--pri);padding:4px 9px;border-radius:8px;text-decoration:none;word-break:break-all}
+.acts{display:flex;gap:6px;margin-top:8px}
+.fab{position:fixed;right:16px;bottom:calc(16px + env(safe-area-inset-bottom,0px));box-shadow:0 4px 14px #0004;border-radius:30px;padding:14px 20px}
+.empty,.hint{text-align:center;color:var(--mut);padding:26px 10px}.hint{padding:8px;font-size:13px}
+dialog{border:0;border-radius:16px;padding:18px;width:min(520px,94vw);max-height:90vh;background:var(--card);color:var(--ink)}
+dialog::backdrop{background:#0007}
+.row{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}.row>*{flex:1}
+.mem{display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid var(--line);font-size:14px}.mem span{flex:1}
+.code{font:700 22px ui-monospace,monospace;letter-spacing:.15em;background:var(--chip);border-radius:10px;padding:8px 12px;text-align:center}
+.wel{text-align:center;padding:40px 6px}.wel h1{font-size:28px;margin:0 0 6px}.wel p{color:var(--mut)}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#222;color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;display:none;z-index:9}
+</style>
+</head>
+<body>
+<div id="app"><div class="empty">Загрузка…</div></div>
+<dialog id="dlg"></dialog>
+<div id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let db,user,assets,uid,groups=[],gid=null,subjects=[],hws=[],done={},filter='all',past=false,unsubs=[],ed=null,ready=false;
+const PAL=['#1f5fbf','#b8542a','#2e8b57','#8e44ad','#c0392b','#0e8a8a','#a07a00','#d0457f'];
+const color=n=>{let h=0;for(const c of n||'')h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]};
+const toast=t=>{const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600)};
+const cur=()=>groups.find(g=>g.id===gid);
+const isHead=()=>!!cur()?.headmen?.includes(uid);
+const days=d=>Math.round((new Date(d+'T00:00:00')-new Date(new Date().toDateString()))/864e5);
+const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'long'});
+const dl=n=>n<0?`просрочено на ${-n} дн.`:n===0?'сегодня':n===1?'завтра':`через ${n} дн.`;
+const openDlg=h=>{const d=$('#dlg');d.innerHTML=h;if(!d.open)d.showModal()};
+const closeDlg=()=>{const d=$('#dlg');if(d.open)d.close()};
+const safeUrl=u=>/^https?:\/\//i.test(u)?u:null;
+
+function ask({title,label,value='',ok='Готово',input=true,text=''}){
+  return new Promise(res=>{
+    openDlg(`<h3 style="margin:0 0 6px">${esc(title)}</h3>${text?`<p style="color:var(--mut)">${esc(text)}</p>`:''}
+    ${input?`<label class="f">${esc(label||'')}<input type="text" id="ask_v" value="${esc(value)}"></label>`:''}
+    <div class="row"><button id="ask_c">Отмена</button><button class="p" id="ask_o">${esc(ok)}</button></div>`);
+    const v=$('#ask_v');v?.focus();
+    $('#ask_c').onclick=()=>{closeDlg();res(null)};
+    $('#ask_o').onclick=()=>{const x=v?v.value.trim():true;closeDlg();res(x||null)};
+  });
+}
+
+async function init(){
+  try{[db,user,assets]=await Promise.all([claude.use('db'),claude.use('user'),claude.use('assets')])}catch(e){}
+  if(!db||!user){$('#app').innerHTML='<div class="empty">Откройте приложение на claude.ai и войдите в аккаунт — тогда данные будут общими для группы.</div>';return}
+  uid=await user.id();
+  try{gid=localStorage.getItem('gid')}catch(e){}
+  db.collection('data/users/'+uid).doc('done').onSnapshot(s=>{done=(s.exists&&s.data().m)||{};render()});
+  db.collection('groups').where('members','array-contains',uid).onSnapshot(s=>{
+    groups=s.docs.map(d=>({id:d.id,...d.data()}));ready=true;
+    if(!groups.find(g=>g.id===gid)){gid=groups[0]?.id||null}
+    sub();render();
+  },e=>toast('Ошибка загрузки: '+e.message));
+}
+let subbed=null;
+function sub(){
+  if(subbed===gid)return;subbed=gid;
+  unsubs.forEach(f=>f());unsubs=[];subjects=[];hws=[];filter='all';
+  try{gid?localStorage.setItem('gid',gid):0}catch(e){}
+  if(!gid)return;
+  unsubs.push(db.collection('subjects').where('gid','==',gid).onSnapshot(s=>{subjects=s.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>a.name.localeCompare(b.name,'ru'));render()}));
+  unsubs.push(db.collection('hw').where('gid','==',gid).onSnapshot(s=>{hws=s.docs.map(d=>({id:d.id,...d.data()}));render()}));
+}
+
+function render(){
+  if(!ready)return;
+  const g=cur(),app=$('#app');
+  if(!g){app.innerHTML=`<div class="wel"><h1>🎓 Домашки МГУ</h1><p>Все задания группы по предметам и срокам в одном месте.</p>
+  <div class="row" style="flex-direction:column;max-width:320px;margin:24px auto"><button class="p" data-act="newGroup">Я староста: создать группу</button><button data-act="join">Я студент: войти по коду</button></div></div>`;return}
+  const head=isHead();
+  const list=hws.filter(h=>filter==='all'||h.sid===filter).sort((a,b)=>a.due.localeCompare(b.due)||a.title.localeCompare(b.title));
+  const up=h=>days(h.due)>=0;
+  const buckets=[['Сегодня',h=>days(h.due)===0],['Завтра',h=>days(h.due)===1],['На этой неделе',h=>days(h.due)>=2&&days(h.due)<=7],['Позже',h=>days(h.due)>7]];
+  let html=`<header><button class="gb" data-act="groups">${esc(g.name)} ▾${head?'<span class="badge">староста</span>':''}</button><button data-act="settings">⚙ Группа</button></header>
+  <div class="chips"><button class="chip ${filter==='all'?'on':''}" data-act="filter" data-id="all">Все<small>${hws.filter(h=>up(h)&&!done[h.id]).length}</small></button>
+  ${subjects.map(s=>`<button class="chip ${filter===s.id?'on':''}" data-act="filter" data-id="${s.id}">${esc(s.name)}<small>${hws.filter(h=>h.sid===s.id&&up(h)&&!done[h.id]).length}</small></button>`).join('')}
+  ${head?'<button class="chip" data-act="addSubj">+ предмет</button>':''}</div>`;
+  const over=list.filter(h=>!up(h));
+  const overOpen=over.filter(h=>!done[h.id]);
+  if(overOpen.length)html+=`<h3 class="g bad">Просрочено</h3>`+overOpen.map(card).join('');
+  let any=overOpen.length>0;
+  for(const [t,f] of buckets){const l=list.filter(h=>up(h)&&f(h));if(l.length){any=true;html+=`<h3 class="g">${t}</h3>`+l.map(card).join('')}}
+  if(!any)html+=`<div class="empty">${subjects.length?'Заданий нет 🎉':(head?'Начните с кнопки «+ предмет»':'Староста пока не добавил предметы')}</div>`;
+  const rest=over.filter(h=>done[h.id]);
+  if(rest.length){html+=`<div class="hint"><button class="s" data-act="past">${past?'Скрыть':'Показать'} прошлые выполненные (${rest.length})</button></div>`;if(past)html+=rest.map(card).join('')}
+  if(!head)html+='<div class="hint">Редактировать задания может только староста. Галочка «сделано» видна только вам.</div>';
+  else html+='<button class="p fab" data-act="newHw">+ Задание</button>';
+  app.innerHTML=html;
+}
+function card(h){
+  const s=subjects.find(x=>x.id===h.sid),d=days(h.due),dn=!!done[h.id];
+  const links=(h.links||[]).map(u=>safeUrl(u)?`<a href="${esc(u)}" target="_blank" rel="noopener">🔗 ${esc(u.replace(/^https?:\/\//,'').slice(0,40))}</a>`:'').join('');
+  const files=(h.files||[]).map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a>`).join('');
+  return `<article class="card ${dn?'dn':''}"><input type="checkbox" data-act="toggle" data-id="${h.id}" ${dn?'checked':''}>
+  <div class="bd"><span class="tag" style="--c:${color(s?.name)}">${esc(s?.name||'Без предмета')}</span><span class="due ${d<0&&!dn?'bad':''}">до ${fmt(h.due)} · ${dl(d)}</span>
+  <h4>${esc(h.title)}</h4>${h.desc?`<div class="desc">${esc(h.desc)}</div>`:''}${links||files?`<div class="att">${files}${links}</div>`:''}
+  ${isHead()?`<div class="acts"><button class="s" data-act="editHw" data-id="${h.id}">✎ Изменить</button><button class="s d" data-act="delHw" data-id="${h.id}">Удалить</button></div>`:''}</div></article>`;
+}
+
+function hwForm(){
+  const o=ed;
+  openDlg(`<h3 style="margin:0">${o.id?'Редактировать задание':'Новое задание'}</h3>
+  <label class="f">Предмет<select id="f_s">${subjects.map(s=>`<option value="${s.id}" ${s.id===o.sid?'selected':''}>${esc(s.name)}</option>`).join('')}</select></label>
+  <label class="f">Что задали<input type="text" id="f_t" value="${esc(o.title)}" placeholder="Например: задачи 1–10 из листка №3"></label>
+  <label class="f">Сдать до<input type="date" id="f_d" value="${esc(o.due)}"></label>
+  <label class="f">Подробности<textarea id="f_x">${esc(o.desc)}</textarea></label>
+  <label class="f">Ссылки (по одной в строке)<textarea id="f_l" placeholder="https://...">${esc((o.links||[]).join('\n'))}</textarea></label>
+  <div class="f" style="margin-top:10px;font-size:13px;color:var(--mut)">Файлы</div><div class="att" id="f_files"></div>
+  ${assets?'<input type="file" id="f_up" multiple style="margin-top:6px">':'<div class="hint" style="text-align:left;padding:4px 0">Загрузка файлов недоступна — добавьте ссылку на диск.</div>'}
+  <div class="row"><button id="f_c">Отмена</button><button class="p" data-act="saveHw" id="f_ok">Сохранить</button></div>`);
+  drawFiles();$('#f_c').onclick=closeDlg;
+  const up=$('#f_up');if(up)up.onchange=async()=>{
+    const b=$('#f_ok');b.disabled=true;b.textContent='Загрузка…';
+    for(const f of up.files){try{const r=await assets.upload(f);ed.files.push({id:r.id,url:r.url,name:f.name})}catch(e){toast('Не загрузился '+f.name+': '+(e.message||e.code))}}
+    up.value='';b.disabled=false;b.textContent='Сохранить';drawFiles();
+  };
+}
+const drawFiles=()=>{const e=$('#f_files');if(e)e.innerHTML=ed.files.length?ed.files.map((f,i)=>`<a href="${esc(f.url)}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a><button class="s d" data-act="rmFile" data-i="${i}">✕</button>`).join(''):'<span style="font-size:13px;color:var(--mut)">нет вложений</span>'};
+
+async function groupDlg(){
+  const g=cur(),head=isHead();
+  const ps=await user.profiles(g.members||[]).catch(()=>({}));
+  const nm=id=>ps[id]?.name||'Участник';
+  openDlg(`<h3 style="margin:0 0 4px">${esc(g.name)}</h3>
+  <div style="font-size:13px;color:var(--mut);margin:6px 0">Код для входа студентов:</div><div class="code">${esc(g.code)}</div>
+  <h3 class="g">Предметы</h3>
+  ${subjects.map(s=>`<div class="mem"><span>${esc(s.name)}</span>${head?`<button class="s" data-act="renSubj" data-id="${s.id}">✎</button><button class="s d" data-act="delSubj" data-id="${s.id}">✕</button>`:''}</div>`).join('')||'<div class="hint">Пока нет</div>'}
+  ${head?'<div class="row"><button data-act="addSubj">+ Добавить предмет</button></div>':''}
+  <h3 class="g">Участники (${(g.members||[]).length})</h3>
+  ${(g.members||[]).map(id=>{const h=g.headmen.includes(id);return `<div class="mem"><span>${esc(nm(id))}${id===uid?' (вы)':''}${h?'<span class="badge">староста</span>':''}</span>
+  ${head&&id!==uid?`<button class="s" data-act="toggleHead" data-id="${id}">${h?'Снять':'Староста'}</button><button class="s d" data-act="kick" data-id="${id}">Убрать</button>`:''}</div>`}).join('')}
+  ${head?`<label class="f">Добавить студента по имени<input type="text" id="srch" placeholder="Начните вводить имя"></label><div id="srchr"></div>`:''}
+  <div class="row"><button class="d" data-act="leave">Выйти из группы</button><button class="p" id="g_c">Закрыть</button></div>`);
+  $('#g_c').onclick=closeDlg;
+  const s=$('#srch');
+  if(s){const run=async()=>{const r=(await user.search(s.value).catch(()=>[])).filter(p=>!g.members.includes(p.id)&&!p.isMe).slice(0,6);
+    $('#srchr').innerHTML=r.map(p=>`<div class="mem"><span>${esc(p.name||'Без имени')}</span><button class="s" data-act="addMem" data-id="${p.id}">Добавить</button></div>`).join('')};
+    s.oninput=run;s.onfocus=run}
+}
+
+const upd=(g,p)=>db.doc('groups/'+g.id).update(p);
+const acts={
+  filter:b=>{filter=b.dataset.id;render()},
+  past:()=>{past=!past;render()},
+  toggle:async b=>{const n={...done};b.checked?n[b.dataset.id]=true:delete n[b.dataset.id];done=n;render();
+    try{await db.collection('data/users/'+uid).doc('done').set({m:n})}catch(e){toast('Не сохранилось')}},
+  newGroup:async()=>{const name=await ask({title:'Новая группа',label:'Название (например, 1 курс, 103 группа)',ok:'Создать'});if(!name)return;
+    const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let code='';for(let i=0;i<6;i++)code+=A[Math.floor(Math.random()*A.length)];
+    try{const r=await db.collection('groups').add({name,code,headmen:[uid],members:[uid],created:Date.now()});gid=r.id;sub();toast('Группа создана. Раздайте код студентам')}catch(e){toast('Ошибка: '+e.message)}},
+  join:async()=>{const c=await ask({title:'Вход в группу',label:'Код от старосты',ok:'Войти'});if(!c)return;
+    try{const s=await db.collection('groups').where('code','==',c.toUpperCase()).get();
+      if(s.empty)return toast('Группа с таким кодом не найдена');
+      const d=s.docs[0],m=d.data().members||[];if(!m.includes(uid))await db.doc('groups/'+d.id).update({members:[...m,uid]});
+      gid=d.id;sub();render();toast('Вы в группе «'+d.data().name+'»')}catch(e){toast('Ошибка: '+e.message)}},
+  groups:()=>{openDlg(`<h3 style="margin:0 0 8px">Мои группы</h3>${groups.map(g=>`<div class="mem"><span>${esc(g.name)}${g.id===gid?' ✓':''}</span><button class="s" data-act="pick" data-id="${g.id}">Открыть</button></div>`).join('')}
+    <div class="row"><button data-act="newGroup">+ Создать</button><button data-act="join">Войти по коду</button></div><div class="row"><button id="g_c">Закрыть</button></div>`);$('#g_c').onclick=closeDlg},
+  pick:b=>{gid=b.dataset.id;sub();closeDlg();render()},
+  settings:groupDlg,
+  addSubj:async()=>{const name=await ask({title:'Новый предмет',label:'Название (например, Математический анализ)',ok:'Добавить'});if(!name)return;
+    try{await db.collection('subjects').add({gid,name})}catch(e){toast('Ошибка: '+e.message)}},
+  renSubj:async b=>{const s=subjects.find(x=>x.id===b.dataset.id);const n=await ask({title:'Переименовать',label:'Название',value:s.name});if(!n)return;
+    await db.doc('subjects/'+s.id).update({name:n});groupDlg()},
+  delSubj:async b=>{const s=subjects.find(x=>x.id===b.dataset.id);const hs=hws.filter(h=>h.sid===s.id);
+    if(!await ask({title:`Удалить «${s.name}»?`,text:hs.length?`Вместе с ним удалятся задания (${hs.length}).`:'',input:false,ok:'Удалить'}))return;
+    await Promise.all(hs.map(h=>db.doc('hw/'+h.id).delete()));await db.doc('subjects/'+s.id).delete();groupDlg()},
+  newHw:()=>{if(!subjects.length)return toast('Сначала добавьте предмет');
+    const t=new Date(Date.now()+864e5);ed={sid:filter!=='all'?filter:subjects[0].id,title:'',desc:'',links:[],files:[],due:t.toISOString().slice(0,10)};hwForm()},
+  editHw:b=>{const h=hws.find(x=>x.id===b.dataset.id);ed={...h,links:[...(h.links||[])],files:[...(h.files||[])]};hwForm()},
+  rmFile:b=>{ed.files.splice(+b.dataset.i,1);drawFiles()},
+  saveHw:async()=>{
+    const title=$('#f_t').value.trim(),due=$('#f_d').value;if(!title||!due)return toast('Укажите название и срок');
+    const data={gid,sid:$('#f_s').value,title,due,desc:$('#f_x').value.trim(),links:$('#f_l').value.split('\n').map(x=>x.trim()).filter(Boolean),files:ed.files,by:uid,ts:Date.now()};
+    try{ed.id?await db.doc('hw/'+ed.id).update(data):await db.collection('hw').add(data);closeDlg();toast('Сохранено')}catch(e){toast('Ошибка: '+e.message)}},
+  delHw:async b=>{const h=hws.find(x=>x.id===b.dataset.id);if(await ask({title:'Удалить задание?',text:h.title,input:false,ok:'Удалить'}))await db.doc('hw/'+h.id).delete()},
+  addMem:async b=>{const g=cur();await upd(g,{members:[...g.members,b.dataset.id]});setTimeout(groupDlg,300)},
+  toggleHead:async b=>{const g=cur(),id=b.dataset.id;await upd(g,{headmen:g.headmen.includes(id)?g.headmen.filter(x=>x!==id):[...g.headmen,id]});setTimeout(groupDlg,300)},
+  kick:async b=>{const g=cur(),id=b.dataset.id;await upd(g,{members:g.members.filter(x=>x!==id),headmen:g.headmen.filter(x=>x!==id)});setTimeout(groupDlg,300)},
+  leave:async()=>{const g=cur();if(g.headmen.length===1&&g.headmen[0]===uid&&g.members.length>1)return toast('Сначала назначьте другого старосту');
+    if(!await ask({title:'Выйти из группы?',input:false,ok:'Выйти'}))return;
+    await upd(g,{members:g.members.filter(x=>x!==uid),headmen:g.headmen.filter(x=>x!==uid)});closeDlg()},
+};
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act])acts[b.dataset.act](b)});
+init();
+</script>
+</body>
+</html>
