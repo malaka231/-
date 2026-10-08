@@ -4,7 +4,6 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Домашки МГУ</title>
-<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎓</text></svg>">
 <style>
 :root{--bg:#f4f5f9;--card:#fff;--ink:#1b1f2a;--mut:#6b7280;--pri:#1f3f8f;--onpri:#fff;--acc:#c9a227;--bad:#c0392b;--ok:#2e8b57;--line:#e3e6ee;--chip:#e9edf8;
 box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -48,29 +47,19 @@ dialog::backdrop{background:#0007}
 .wel{text-align:center;padding:40px 6px}.wel h1{font-size:28px;margin:0 0 6px}.wel p{color:var(--mut)}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:90px;background:#222;color:#fff;padding:9px 16px;border-radius:20px;font-size:14px;display:none;z-index:9}
 </style>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 <div id="app"><div class="empty">Загрузка…</div></div>
 <dialog id="dlg"></dialog>
 <div id="toast"></div>
 <script>
-// ====== НАСТРОЙКА ======
-// null  -> локальный режим (данные только в этом браузере, для проверки).
-// Объект -> общий режим через Firebase (см. README.md), студенты видят одни данные.
-const FIREBASE_CONFIG = null;
-// const FIREBASE_CONFIG = { apiKey:"...", authDomain:"...", projectId:"...", appId:"..." };
-// =======================
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let db,uid,mode,myName,groups=[],gid=null,subjects=[],hws=[],done={},filter='all',past=false,unsubs=[],ed=null,ready=false;
+let db,user,assets,uid,groups=[],gid=null,subjects=[],hws=[],done={},filter='all',past=false,unsubs=[],ed=null,ready=false;
 const PAL=['#1f5fbf','#b8542a','#2e8b57','#8e44ad','#c0392b','#0e8a8a','#a07a00','#d0457f'];
 const color=n=>{let h=0;for(const c of n||'')h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]};
 const toast=t=>{const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600)};
 const cur=()=>groups.find(g=>g.id===gid);
-const nm=id=>cur()?.names?.[id]||'Участник';
 const isHead=()=>!!cur()?.headmen?.includes(uid);
 const days=d=>Math.round((new Date(d+'T00:00:00')-new Date(new Date().toDateString()))/864e5);
 const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'long'});
@@ -90,43 +79,12 @@ function ask({title,label,value='',ok='Готово',input=true,text=''}){
   });
 }
 
-
-const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
-const banner=()=>mode==='local'?'<div class="hint">Локальный режим: данные только на этом устройстве (см. README)</div>':'';
-const rm=(g,id)=>({members:g.members.filter(x=>x!==id),headmen:g.headmen.filter(x=>x!==id),names:Object.fromEntries(Object.entries(g.names||{}).filter(([k])=>k!==id))});
-function readFile(f){return new Promise((ok,no)=>{
-  if(f.size>400*1024)return no(new Error('файл больше 400 КБ — дайте ссылку на диск'));
-  const r=new FileReader();r.onload=()=>ok({name:f.name,url:r.result});r.onerror=()=>no(new Error('не прочитался'));r.readAsDataURL(f)})}
-// Мини-имитация Firestore на localStorage (локальный режим)
-function localDB(){
-  const K='msuhw_db';let data={};try{data=JSON.parse(ls.get(K)||'{}')}catch(e){}
-  const subs=new Set(),ops={'==':(a,b)=>a===b,'array-contains':(a,b)=>Array.isArray(a)&&a.includes(b)};
-  const save=()=>{ls.set(K,JSON.stringify(data));subs.forEach(f=>f())};
-  const parse=p=>{const s=p.split('/');return [s.slice(0,-1).join('/'),s[s.length-1]]};
-  const sd=(c,id)=>{const v=data[c]?.[id];return{id,exists:!!v,data:()=>v&&JSON.parse(JSON.stringify(v))}};
-  const qs=(c,fs)=>{const docs=Object.keys(data[c]||{}).filter(id=>fs.every(([f,o,v])=>ops[o](data[c][id][f],v))).map(id=>sd(c,id));return{docs,size:docs.length,empty:!docs.length}};
-  const listen=(fn)=>{subs.add(fn);setTimeout(fn);return()=>subs.delete(fn)};
-  const query=(c,fs)=>({where:(f,o,v)=>query(c,[...fs,[f,o,v]]),get:async()=>qs(c,fs),onSnapshot:n=>listen(()=>n(qs(c,fs)))});
-  window.addEventListener('storage',e=>{if(e.key===K){try{data=JSON.parse(e.newValue||'{}')}catch(x){}subs.forEach(f=>f())}});
-  return{
-    collection:c=>({...query(c,[]),add:async d=>{const id=Math.random().toString(36).slice(2,12);(data[c]??={})[id]=d;save();return{id}}}),
-    doc:p=>{const[c,id]=parse(p);return{id,get:async()=>sd(c,id),
-      set:async d=>{(data[c]??={})[id]=d;save()},update:async d=>{data[c][id]={...data[c][id],...d};save()},
-      delete:async()=>{delete data[c]?.[id];save()},onSnapshot:n=>listen(()=>n(sd(c,id)))}}
-  };
-}
-async function ensureName(){
-  if(myName)return true;
-  const n=await ask({title:'Как вас зовут?',label:'Имя и фамилия (увидит группа)',ok:'Продолжить'});
-  if(!n)return false;myName=n;ls.set('name',n);return true;
-}
 async function init(){
-  try{
-    if(FIREBASE_CONFIG){firebase.initializeApp(FIREBASE_CONFIG);const c=await firebase.auth().signInAnonymously();uid=c.user.uid;db=firebase.firestore();mode='cloud'}
-    else{db=localDB();uid=ls.get('uid');if(!uid){uid='u'+Math.random().toString(36).slice(2,12);ls.set('uid',uid)}mode='local'}
-  }catch(e){$('#app').innerHTML='<div class="empty">Не удалось подключиться: '+esc(e.message)+'</div>';return}
-  myName=ls.get('name')||'';gid=ls.get('gid');
-  db.doc('userdata/'+uid).onSnapshot(s=>{done=(s.exists&&s.data().m)||{};render()});
+  try{[db,user,assets]=await Promise.all([claude.use('db'),claude.use('user'),claude.use('assets')])}catch(e){}
+  if(!db||!user){$('#app').innerHTML='<div class="empty">Откройте приложение на claude.ai и войдите в аккаунт — тогда данные будут общими для группы.</div>';return}
+  uid=await user.id();
+  try{gid=localStorage.getItem('gid')}catch(e){}
+  db.collection('data/users/'+uid).doc('done').onSnapshot(s=>{done=(s.exists&&s.data().m)||{};render()});
   db.collection('groups').where('members','array-contains',uid).onSnapshot(s=>{
     groups=s.docs.map(d=>({id:d.id,...d.data()}));ready=true;
     if(!groups.find(g=>g.id===gid)){gid=groups[0]?.id||null}
@@ -152,7 +110,7 @@ function render(){
   const list=hws.filter(h=>filter==='all'||h.sid===filter).sort((a,b)=>a.due.localeCompare(b.due)||a.title.localeCompare(b.title));
   const up=h=>days(h.due)>=0;
   const buckets=[['Сегодня',h=>days(h.due)===0],['Завтра',h=>days(h.due)===1],['На этой неделе',h=>days(h.due)>=2&&days(h.due)<=7],['Позже',h=>days(h.due)>7]];
-  let html=`${banner()}<header><button class="gb" data-act="groups">${esc(g.name)} ▾${head?'<span class="badge">староста</span>':''}</button><button data-act="settings">⚙ Группа</button></header>
+  let html=`<header><button class="gb" data-act="groups">${esc(g.name)} ▾${head?'<span class="badge">староста</span>':''}</button><button data-act="settings">⚙ Группа</button></header>
   <div class="chips"><button class="chip ${filter==='all'?'on':''}" data-act="filter" data-id="all">Все<small>${hws.filter(h=>up(h)&&!done[h.id]).length}</small></button>
   ${subjects.map(s=>`<button class="chip ${filter===s.id?'on':''}" data-act="filter" data-id="${s.id}">${esc(s.name)}<small>${hws.filter(h=>h.sid===s.id&&up(h)&&!done[h.id]).length}</small></button>`).join('')}
   ${head?'<button class="chip" data-act="addSubj">+ предмет</button>':''}</div>`;
@@ -171,7 +129,7 @@ function render(){
 function card(h){
   const s=subjects.find(x=>x.id===h.sid),d=days(h.due),dn=!!done[h.id];
   const links=(h.links||[]).map(u=>safeUrl(u)?`<a href="${esc(u)}" target="_blank" rel="noopener">🔗 ${esc(u.replace(/^https?:\/\//,'').slice(0,40))}</a>`:'').join('');
-  const files=(h.files||[]).map(f=>`<a href="${esc(f.url)}" download="${esc(f.name)}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a>`).join('');
+  const files=(h.files||[]).map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a>`).join('');
   return `<article class="card ${dn?'dn':''}"><input type="checkbox" data-act="toggle" data-id="${h.id}" ${dn?'checked':''}>
   <div class="bd"><span class="tag" style="--c:${color(s?.name)}">${esc(s?.name||'Без предмета')}</span><span class="due ${d<0&&!dn?'bad':''}">до ${fmt(h.due)} · ${dl(d)}</span>
   <h4>${esc(h.title)}</h4>${h.desc?`<div class="desc">${esc(h.desc)}</div>`:''}${links||files?`<div class="att">${files}${links}</div>`:''}
@@ -186,20 +144,22 @@ function hwForm(){
   <label class="f">Сдать до<input type="date" id="f_d" value="${esc(o.due)}"></label>
   <label class="f">Подробности<textarea id="f_x">${esc(o.desc)}</textarea></label>
   <label class="f">Ссылки (по одной в строке)<textarea id="f_l" placeholder="https://...">${esc((o.links||[]).join('\n'))}</textarea></label>
-  <div class="f" style="margin-top:10px;font-size:13px;color:var(--mut)">Файлы (небольшие, до 400 КБ; большие — ссылкой)</div><div class="att" id="f_files"></div>
-  <input type="file" id="f_up" multiple style="margin-top:6px">
+  <div class="f" style="margin-top:10px;font-size:13px;color:var(--mut)">Файлы</div><div class="att" id="f_files"></div>
+  ${assets?'<input type="file" id="f_up" multiple style="margin-top:6px">':'<div class="hint" style="text-align:left;padding:4px 0">Загрузка файлов недоступна — добавьте ссылку на диск.</div>'}
   <div class="row"><button id="f_c">Отмена</button><button class="p" data-act="saveHw" id="f_ok">Сохранить</button></div>`);
   drawFiles();$('#f_c').onclick=closeDlg;
   const up=$('#f_up');if(up)up.onchange=async()=>{
     const b=$('#f_ok');b.disabled=true;b.textContent='Загрузка…';
-    for(const f of up.files){try{ed.files.push(await readFile(f))}catch(e){toast('Не загрузился '+f.name+': '+(e.message||e.code))}}
+    for(const f of up.files){try{const r=await assets.upload(f);ed.files.push({id:r.id,url:r.url,name:f.name})}catch(e){toast('Не загрузился '+f.name+': '+(e.message||e.code))}}
     up.value='';b.disabled=false;b.textContent='Сохранить';drawFiles();
   };
 }
-const drawFiles=()=>{const e=$('#f_files');if(e)e.innerHTML=ed.files.length?ed.files.map((f,i)=>`<a href="${esc(f.url)}" download="${esc(f.name)}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a><button class="s d" data-act="rmFile" data-i="${i}">✕</button>`).join(''):'<span style="font-size:13px;color:var(--mut)">нет вложений</span>'};
+const drawFiles=()=>{const e=$('#f_files');if(e)e.innerHTML=ed.files.length?ed.files.map((f,i)=>`<a href="${esc(f.url)}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a><button class="s d" data-act="rmFile" data-i="${i}">✕</button>`).join(''):'<span style="font-size:13px;color:var(--mut)">нет вложений</span>'};
 
 async function groupDlg(){
   const g=cur(),head=isHead();
+  const ps=await user.profiles(g.members||[]).catch(()=>({}));
+  const nm=id=>ps[id]?.name||'Участник';
   openDlg(`<h3 style="margin:0 0 4px">${esc(g.name)}</h3>
   <div style="font-size:13px;color:var(--mut);margin:6px 0">Код для входа студентов:</div><div class="code">${esc(g.code)}</div>
   <h3 class="g">Предметы</h3>
@@ -208,8 +168,13 @@ async function groupDlg(){
   <h3 class="g">Участники (${(g.members||[]).length})</h3>
   ${(g.members||[]).map(id=>{const h=g.headmen.includes(id);return `<div class="mem"><span>${esc(nm(id))}${id===uid?' (вы)':''}${h?'<span class="badge">староста</span>':''}</span>
   ${head&&id!==uid?`<button class="s" data-act="toggleHead" data-id="${id}">${h?'Снять':'Староста'}</button><button class="s d" data-act="kick" data-id="${id}">Убрать</button>`:''}</div>`}).join('')}
+  ${head?`<label class="f">Добавить студента по имени<input type="text" id="srch" placeholder="Начните вводить имя"></label><div id="srchr"></div>`:''}
   <div class="row"><button class="d" data-act="leave">Выйти из группы</button><button class="p" id="g_c">Закрыть</button></div>`);
   $('#g_c').onclick=closeDlg;
+  const s=$('#srch');
+  if(s){const run=async()=>{const r=(await user.search(s.value).catch(()=>[])).filter(p=>!g.members.includes(p.id)&&!p.isMe).slice(0,6);
+    $('#srchr').innerHTML=r.map(p=>`<div class="mem"><span>${esc(p.name||'Без имени')}</span><button class="s" data-act="addMem" data-id="${p.id}">Добавить</button></div>`).join('')};
+    s.oninput=run;s.onfocus=run}
 }
 
 const upd=(g,p)=>db.doc('groups/'+g.id).update(p);
@@ -217,14 +182,14 @@ const acts={
   filter:b=>{filter=b.dataset.id;render()},
   past:()=>{past=!past;render()},
   toggle:async b=>{const n={...done};b.checked?n[b.dataset.id]=true:delete n[b.dataset.id];done=n;render();
-    try{await db.doc('userdata/'+uid).set({m:n})}catch(e){toast('Не сохранилось')}},
-  newGroup:async()=>{if(!await ensureName())return;const name=await ask({title:'Новая группа',label:'Название (например, 1 курс, 103 группа)',ok:'Создать'});if(!name)return;
+    try{await db.collection('data/users/'+uid).doc('done').set({m:n})}catch(e){toast('Не сохранилось')}},
+  newGroup:async()=>{const name=await ask({title:'Новая группа',label:'Название (например, 1 курс, 103 группа)',ok:'Создать'});if(!name)return;
     const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';let code='';for(let i=0;i<6;i++)code+=A[Math.floor(Math.random()*A.length)];
-    try{const r=await db.collection('groups').add({name,code,headmen:[uid],members:[uid],names:{[uid]:myName},created:Date.now()});gid=r.id;sub();toast('Группа создана. Раздайте код студентам')}catch(e){toast('Ошибка: '+e.message)}},
-  join:async()=>{if(!await ensureName())return;const c=await ask({title:'Вход в группу',label:'Код от старосты',ok:'Войти'});if(!c)return;
+    try{const r=await db.collection('groups').add({name,code,headmen:[uid],members:[uid],created:Date.now()});gid=r.id;sub();toast('Группа создана. Раздайте код студентам')}catch(e){toast('Ошибка: '+e.message)}},
+  join:async()=>{const c=await ask({title:'Вход в группу',label:'Код от старосты',ok:'Войти'});if(!c)return;
     try{const s=await db.collection('groups').where('code','==',c.toUpperCase()).get();
       if(s.empty)return toast('Группа с таким кодом не найдена');
-      const d=s.docs[0],m=d.data().members||[];if(!m.includes(uid))await db.doc('groups/'+d.id).update({members:[...m,uid],names:{...(d.data().names||{}),[uid]:myName}});
+      const d=s.docs[0],m=d.data().members||[];if(!m.includes(uid))await db.doc('groups/'+d.id).update({members:[...m,uid]});
       gid=d.id;sub();render();toast('Вы в группе «'+d.data().name+'»')}catch(e){toast('Ошибка: '+e.message)}},
   groups:()=>{openDlg(`<h3 style="margin:0 0 8px">Мои группы</h3>${groups.map(g=>`<div class="mem"><span>${esc(g.name)}${g.id===gid?' ✓':''}</span><button class="s" data-act="pick" data-id="${g.id}">Открыть</button></div>`).join('')}
     <div class="row"><button data-act="newGroup">+ Создать</button><button data-act="join">Войти по коду</button></div><div class="row"><button id="g_c">Закрыть</button></div>`);$('#g_c').onclick=closeDlg},
@@ -246,11 +211,12 @@ const acts={
     const data={gid,sid:$('#f_s').value,title,due,desc:$('#f_x').value.trim(),links:$('#f_l').value.split('\n').map(x=>x.trim()).filter(Boolean),files:ed.files,by:uid,ts:Date.now()};
     try{ed.id?await db.doc('hw/'+ed.id).update(data):await db.collection('hw').add(data);closeDlg();toast('Сохранено')}catch(e){toast('Ошибка: '+e.message)}},
   delHw:async b=>{const h=hws.find(x=>x.id===b.dataset.id);if(await ask({title:'Удалить задание?',text:h.title,input:false,ok:'Удалить'}))await db.doc('hw/'+h.id).delete()},
+  addMem:async b=>{const g=cur();await upd(g,{members:[...g.members,b.dataset.id]});setTimeout(groupDlg,300)},
   toggleHead:async b=>{const g=cur(),id=b.dataset.id;await upd(g,{headmen:g.headmen.includes(id)?g.headmen.filter(x=>x!==id):[...g.headmen,id]});setTimeout(groupDlg,300)},
-  kick:async b=>{const g=cur(),id=b.dataset.id;await upd(g,rm(g,id));setTimeout(groupDlg,300)},
+  kick:async b=>{const g=cur(),id=b.dataset.id;await upd(g,{members:g.members.filter(x=>x!==id),headmen:g.headmen.filter(x=>x!==id)});setTimeout(groupDlg,300)},
   leave:async()=>{const g=cur();if(g.headmen.length===1&&g.headmen[0]===uid&&g.members.length>1)return toast('Сначала назначьте другого старосту');
     if(!await ask({title:'Выйти из группы?',input:false,ok:'Выйти'}))return;
-    await upd(g,rm(g,uid));closeDlg()},
+    await upd(g,{members:g.members.filter(x=>x!==uid),headmen:g.headmen.filter(x=>x!==uid)});closeDlg()},
 };
 document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act])acts[b.dataset.act](b)});
 init();
