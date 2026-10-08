@@ -102,7 +102,9 @@ function ask({title,label,value='',ok='Готово',input=true,text='',cancel=t
 
 /* ---------- GitHub ---------- */
 const gh=(path,opt={})=>fetch('https://api.github.com'+path,{cache:'no-store',...opt,headers:{Accept:'application/vnd.github+json',...(token?{Authorization:'Bearer '+token}:{}),...(opt.headers||{})}});
-const errText=async r=>{try{return (await r.json()).message||('HTTP '+r.status)}catch(e){return 'HTTP '+r.status}};
+const errText=async r=>{let m='HTTP '+r.status;try{m=(await r.json()).message||m}catch(e){}
+  if(/not accessible by personal access token/i.test(m)||r.status===403)return 'у токена нет права записи. GitHub → Settings → Developer settings → Fine-grained tokens → ваш токен → Repository permissions → Contents → «Read and write» → Update. Затем войдите заново (или создайте новый токен).';
+  return m};
 async function loadPublic(){
   const bs=[...new Set([S.branch,CFG.branch,'main','master'].filter(Boolean))];
   for(const b of bs){
@@ -222,7 +224,7 @@ function loginDlg(){
   <p style="font-size:14px;color:var(--mut);margin:0">Нужен токен GitHub с правом записи в репозиторий <b>${esc(OWNER+'/'+REPO)}</b>:</p>
   <ol><li>Откройте <a class="l" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">создание токена</a>.</li>
   <li>Repository access → <i>Only select repositories</i> → этот репозиторий.</li>
-  <li>Permissions → Repository permissions → <b>Contents: Read and write</b>.</li>
+  <li>Permissions → Repository permissions → <b>Contents</b> → переключите на <b>Read and write</b> (по умолчанию там «No access»).</li>
   <li>Generate token, скопируйте и вставьте сюда.</li></ol>
   <label class="f">Токен<input type="text" class="tok" id="tk" autocomplete="off" placeholder="github_pat_..."></label>
   <div class="row"><button id="tk_c">Отмена</button><button class="p" data-act="doLogin">Войти</button></div>`);
@@ -246,7 +248,11 @@ const acts={
       const j=await r.json();
       if(!j.permissions?.push)return toast('У токена нет права записи: нужно Contents → Read and write');
       token=t;BR=j.default_branch||BR;ls.set('ghtoken',t);ls.set('ghbranch',BR);
-      closeDlg();await load();toast('Вы вошли как староста');
+      await load();
+      if(sha===null){ // data.json ещё нет: заодно проверяем право записи
+        try{await mutate(()=>{},'Создание data.json')}catch(e){logout();ls.del('ghbranch');BR=CFG.branch||'';return toast('Токен не подошёл: '+(e.message||e))}
+      }
+      closeDlg();toast('Вы вошли как староста');
     }catch(e){toast('Нет связи с GitHub: '+e.message)}},
   logout:()=>{logout();closeDlg();toast('Вы вышли')},
   copyLink:async()=>{const u=location.origin+location.pathname;try{await navigator.clipboard.writeText(u);toast('Ссылка скопирована')}catch(e){await ask({title:'Ссылка для студентов',label:'Скопируйте и отправьте',value:u,ok:'Закрыть',cancel:false})}},
