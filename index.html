@@ -57,26 +57,21 @@ dialog::backdrop{background:#0007}
 <dialog id="dlg"></dialog>
 <div id="toast"></div>
 <script>
-/* Домашки МГУ — работает на GitHub Pages без сторонних сервисов.
-   Данные лежат в data.json в этом же репозитории.
-   Читать может любой, у кого есть ссылка. Писать — староста с токеном GitHub. */
+/* Домашки МГУ. Входит по кодам: код группы (студенты) и код старосты (редактирование).
+   Данные хранятся во внешнем бесплатном хранилище ключ-значение (адрес в config.js). */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+const ls={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}}};
 const CFG=window.APP_CONFIG||{};
-const onGh=location.hostname.endsWith('.github.io');
-const parts=location.pathname.split('/').filter(Boolean);
-const OWNER=CFG.owner||(onGh?location.hostname.split('.')[0]:'');
-const REPO=CFG.repo||(onGh?(parts[0]&&!/\.[a-z]+$/i.test(parts[0])?parts[0]:location.hostname):'');
-const demo=!(OWNER&&REPO);
-let token=ls.get('ghtoken')||'',BR=ls.get('ghbranch')||CFG.branch||'';
-let S={name:'Моя группа',branch:'',subjects:[],hw:[]},sha=null,loaded=false,err=null,updated=null;
-let done={};try{done=JSON.parse(ls.get('done')||'{}')}catch(e){}
-let filter='all',past=false,ed=null,busy=false;
+const STORE=(CFG.store||'https://kvs.ix.workers.dev/msuhw').replace(/\/$/,'');
+const jget=(k,d)=>{try{return JSON.parse(ls.get(k))??d}catch(e){return d}};
+let myGroups=jget('groups',[]),act=ls.get('act')||'',done=jget('done',{});
+let S={name:'',subjects:[],hw:[]},loaded=false,err=null,updated=null,lastW=0,lastTs=0,busy=false,ed=null,filter='all',past=false;
 const PAL=['#1f5fbf','#b8542a','#2e8b57','#8e44ad','#c0392b','#0e8a8a','#a07a00','#d0457f'];
 const color=n=>{let h=0;for(const c of n||'')h=(h*31+c.charCodeAt(0))>>>0;return PAL[h%PAL.length]};
 const toast=t=>{const e=$('#toast');e.textContent=t;e.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>e.style.display='none',2600+t.length*45)};
-const isHead=()=>demo||!!token;
+const cur=()=>myGroups.find(g=>g.code===act);
+const isHead=()=>!!cur()?.hc;
 const days=d=>Math.round((new Date(d+'T00:00:00')-new Date(new Date().toDateString()))/864e5);
 const fmt=d=>new Date(d+'T00:00:00').toLocaleDateString('ru-RU',{weekday:'short',day:'numeric',month:'long'});
 const dl=n=>n<0?`просрочено на ${-n} дн.`:n===0?'сегодня':n===1?'завтра':`через ${n} дн.`;
@@ -84,91 +79,75 @@ const rid=()=>Math.random().toString(36).slice(2,9);
 const safeUrl=u=>/^https?:\/\//i.test(u)?u:null;
 const openDlg=h=>{const d=$('#dlg');d.innerHTML=h;if(!d.open)d.showModal()};
 const closeDlg=()=>{const d=$('#dlg');if(d.open)d.close()};
-const b64=u=>{let s='';for(let i=0;i<u.length;i+=0x8000)s+=String.fromCharCode.apply(null,u.subarray(i,i+0x8000));return btoa(s)};
-const unb64=t=>Uint8Array.from(atob(t.replace(/\s/g,'')),c=>c.charCodeAt(0));
-const norm=d=>({name:d.name||'Моя группа',branch:d.branch||'',subjects:d.subjects||[],hw:d.hw||[],ts:d.ts});
-const fileUrl=f=>`https://raw.githubusercontent.com/${OWNER}/${REPO}/${S.branch||BR||'main'}/${f.path}`;
+const saveG=()=>{ls.set('groups',JSON.stringify(myGroups));ls.set('act',act)};
+const norm=d=>({name:d.name||'Группа',hhash:d.hhash||'',subjects:d.subjects||[],hw:d.hw||[],ts:d.ts||0});
+const A='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+const gen=n=>{const a=new Uint32Array(n);(crypto.getRandomValues?crypto.getRandomValues(a):a.forEach((_,i)=>a[i]=Math.random()*4e9));return [...a].map(x=>A[x%A.length]).join('')};
+async function hash(s){try{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode('msuhw:'+s));return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')}catch(e){let h=5381;for(const c of 'msuhw:'+s)h=(h*33^c.charCodeAt(0))>>>0;return 'x'+h}}
+const CYR_LOOK={'А':'A','В':'B','С':'C','Е':'E','Н':'H','К':'K','М':'M','О':'O','Р':'P','Т':'T','Х':'X','У':'Y'};
+const CYR_KEY={'Й':'Q','Ц':'W','У':'E','К':'R','Е':'T','Н':'Y','Г':'U','Ш':'I','Щ':'O','З':'P','Ф':'A','Ы':'S','В':'D','А':'F','П':'G','Р':'H','О':'J','Л':'K','Д':'L','Я':'Z','Ч':'X','С':'C','М':'V','И':'B','Т':'N','Ь':'M'};
+function cands(raw){const u=String(raw||'').toUpperCase().replace(/[^A-ZА-ЯЁ0-9]/g,'');const m=t=>[...u].map(c=>t[c]||c).join('');return [...new Set([u,m(CYR_LOOK),m(CYR_KEY)])].filter(Boolean)}
 
 function ask({title,label,value='',ok='Готово',input=true,text='',cancel=true}){
   return new Promise(res=>{
     openDlg(`<h3 style="margin:0 0 6px">${esc(title)}</h3>${text?`<p style="color:var(--mut);font-size:14px">${esc(text)}</p>`:''}
-    ${input?`<label class="f">${esc(label||'')}<input type="text" id="ask_v" value="${esc(value)}"></label>`:''}
+    ${input?`<label class="f">${esc(label||'')}<input type="text" id="ask_v" value="${esc(value)}" autocapitalize="characters" autocomplete="off"></label>`:''}
     <div class="row">${cancel?'<button id="ask_c">Отмена</button>':''}<button class="p" id="ask_o">${esc(ok)}</button></div>`);
-    const v=$('#ask_v');v?.focus();
-    const c=$('#ask_c');if(c)c.onclick=()=>{closeDlg();res(null)};
+    const v=$('#ask_v');v?.focus();const c=$('#ask_c');if(c)c.onclick=()=>{closeDlg();res(null)};
     $('#ask_o').onclick=()=>{const x=v?v.value.trim():true;closeDlg();res(x||null)};
   });
 }
 
-/* ---------- GitHub ---------- */
-const gh=(path,opt={})=>fetch('https://api.github.com'+path,{cache:'no-store',...opt,headers:{Accept:'application/vnd.github+json',...(token?{Authorization:'Bearer '+token}:{}),...(opt.headers||{})}});
-const errText=async r=>{let m='HTTP '+r.status;try{m=(await r.json()).message||m}catch(e){}
-  if(/not accessible by personal access token/i.test(m)||r.status===403)return 'у токена нет права записи. GitHub → Settings → Developer settings → Fine-grained tokens → ваш токен → Repository permissions → Contents → «Read and write» → Update. Затем войдите заново (или создайте новый токен).';
-  return m};
-async function loadPublic(){
-  const bs=[...new Set([S.branch,CFG.branch,'main','master'].filter(Boolean))];
-  for(const b of bs){
-    const r=await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${b}/data.json?t=${Date.now()}`,{cache:'no-store'});
-    if(r.ok)return await r.json();
-  }
-  return null;
+/* ---------- Хранилище ---------- */
+async function kvGet(k){const r=await fetch(`${STORE}/${k}?t=${Date.now()}`,{cache:'no-store'});if(r.status===404)return null;if(!r.ok)throw new Error('HTTP '+r.status);return await r.text()}
+async function kvPut(k,v){const r=await fetch(`${STORE}/${k}`,{method:'PUT',body:v});if(!r.ok)throw new Error('хранилище ответило HTTP '+r.status)}
+async function diag(){
+  const k='test-'+gen(6),v='ok-'+Date.now();
+  try{await kvPut(k,v);const g=await kvGet(k);toast(g===v?'✅ Связь с хранилищем работает':'⚠ Хранилище приняло запись, но вернуло другое значение')}
+  catch(e){toast('❌ Хранилище недоступно: '+e.message+'. Проверьте интернет или адрес store в config.js')}
 }
 async function load(){
+  const g=cur();if(!g){loaded=true;render();return}
   try{
-    if(demo){const d=JSON.parse(ls.get('demo')||'null');if(d)S=norm(d)}
-    else if(token){
-      const r=await gh(`/repos/${OWNER}/${REPO}/contents/data.json?t=${Date.now()}`+(BR?`&ref=${BR}`:''));
-      if(r.status===404)sha=null;
-      else if(r.status===401){logout();toast('Токен недействителен — войдите заново');return load()}
-      else if(!r.ok)throw new Error(await errText(r));
-      else{const j=await r.json();sha=j.sha;S=norm(JSON.parse(new TextDecoder().decode(unb64(j.content))))}
-    }else{const d=await loadPublic();if(d)S=norm(d)}
-    err=null;updated=Date.now();
-  }catch(e){err='Нет связи с GitHub: '+(e.message||e)}
+    const t=await kvGet('g-'+g.code);
+    if(t===null)err='Группа не найдена в хранилище (возможно, данные удалены).';
+    else{const d=norm(JSON.parse(t));
+      if(!(d.ts<lastTs&&Date.now()-lastW<180000))S=d;   // защита от устаревших чтений сразу после записи
+      err=null;updated=Date.now()}
+  }catch(e){err='Нет связи с хранилищем: '+(e.message||e)}
   loaded=true;render();
 }
-async function mutate(fn,msg){
-  if(demo){const n=norm(JSON.parse(JSON.stringify(S)));fn(n);S=n;ls.set('demo',JSON.stringify(S));render();return}
-  for(let i=0;i<3;i++){
-    await load();if(err)throw new Error(err);
-    const n=norm(JSON.parse(JSON.stringify(S)));fn(n);n.ts=Date.now();if(BR)n.branch=BR;
-    const body={message:msg||'Обновление',content:b64(new TextEncoder().encode(JSON.stringify(n,null,1)))};
-    if(sha)body.sha=sha;if(BR)body.branch=BR;
-    const r=await gh(`/repos/${OWNER}/${REPO}/contents/data.json`,{method:'PUT',body:JSON.stringify(body)});
-    if(r.ok){const j=await r.json();sha=j.content.sha;S=n;render();return}
-    if(r.status===409||r.status===422)continue;
-    throw new Error(await errText(r));
-  }
-  throw new Error('Конфликт при сохранении, попробуйте ещё раз');
+async function mutate(fn){
+  const g=cur(),t=await kvGet('g-'+g.code);
+  if(t===null)throw new Error('группа не найдена в хранилище');
+  const n=norm(JSON.parse(t));fn(n);n.ts=Date.now();
+  await kvPut('g-'+g.code,JSON.stringify(n));
+  S=n;lastTs=n.ts;lastW=Date.now();err=null;updated=Date.now();render();
 }
-const run=async(p,ok)=>{if(busy)return;busy=true;try{await p;if(ok)toast(ok)}catch(e){toast('Ошибка: '+(e.message||e))}busy=false};
-function logout(){token='';ls.del('ghtoken');render()}
-async function uploadFile(f){
-  if(demo)throw new Error('в демо-режиме файлы не загружаются — используйте ссылки');
-  if(f.size>15*1024*1024)throw new Error('файл больше 15 МБ');
-  const path='files/'+Date.now()+'-'+f.name.replace(/[^\w.\-]+/g,'_');
-  const body={message:'Файл: '+f.name,content:b64(new Uint8Array(await f.arrayBuffer()))};if(BR)body.branch=BR;
-  const r=await gh(`/repos/${OWNER}/${REPO}/contents/${path}`,{method:'PUT',body:JSON.stringify(body)});
-  if(!r.ok)throw new Error(await errText(r));
-  return {name:f.name,path};
+const run=async(p,ok)=>{if(busy)return false;busy=true;try{await p;if(ok)toast(ok);busy=false;return true}catch(e){toast('Ошибка: '+(e.message||e));busy=false;return false}};
+const fileData=f=>new Promise((ok,no)=>{if(f.size>3*1024*1024)return no(new Error('файл больше 3 МБ — дайте ссылку на диск'));const r=new FileReader();r.onload=()=>ok(r.result);r.onerror=()=>no(new Error('не прочитался'));r.readAsDataURL(f)});
+async function uploadFile(f){const id=rid()+rid();await kvPut(`f-${act}-${id}`,await fileData(f));return {name:f.name,id}}
+async function openFile(id,name){
+  try{const t=await kvGet(`f-${act}-${id}`);if(t===null)return toast('Файл не найден');
+    const b=await (await fetch(t)).blob(),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),6e4)}
+  catch(e){toast('Не открылся файл: '+e.message)}
 }
 
 /* ---------- Рендер ---------- */
 function render(){
-  const app=$('#app');if(!loaded)return;
-  const head=isHead();
-  const upd=updated?new Date(updated).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):'';
-  let h=`<header><div><div class="gb">${esc(S.name)}${head?'<span class="badge">староста</span>':''}</div>
-  <div class="sub">${demo?'Демо-режим: данные только на этом устройстве':'Обновлено в '+upd}</div></div>
-  <div class="hb"><button data-act="refresh" title="Обновить">⟳</button>${head?'<button data-act="settings">⚙</button>':'<button data-act="login">Я староста</button>'}</div></header>`;
-  if(err)h+=`<div class="hint" style="color:var(--bad)">${esc(err)}</div>`;
+  if(!loaded)return;const app=$('#app'),g=cur();
+  if(!g){app.innerHTML=`<div class="wel"><h1>🎓 Домашки МГУ</h1><p>Все задания группы по предметам и срокам в одном месте.</p>
+  <div class="row" style="flex-direction:column;max-width:340px;margin:24px auto"><button class="p" data-act="join">Я студент: ввести код группы</button><button data-act="newGroup">Я староста: создать группу</button><button data-act="joinHead">Я староста: войти по коду старосты</button><button class="s" data-act="diag">Проверить связь с хранилищем</button></div></div>`;return}
+  const head=isHead(),upd=updated?new Date(updated).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):'';
+  let h=`<header><div><button class="gb" data-act="groups">${esc(S.name||'Группа')} ▾${head?'<span class="badge">староста</span>':''}</button><div class="sub">Код группы: <b>${esc(g.code)}</b>${upd?' · обновлено '+upd:''}</div></div>
+  <div class="hb"><button data-act="refresh" title="Обновить">⟳</button><button data-act="settings">⚙</button></div></header>`;
+  if(err)h+=`<div class="hint" style="color:var(--bad)">${esc(err)} <button class="s" data-act="diag">Проверить связь</button></div>`;
   const up=x=>days(x.due)>=0;
   h+=`<div class="chips"><button class="chip ${filter==='all'?'on':''}" data-act="filter" data-id="all">Все<small>${S.hw.filter(x=>up(x)&&!done[x.id]).length}</small></button>
   ${S.subjects.map(s=>`<button class="chip ${filter===s.id?'on':''}" data-act="filter" data-id="${s.id}">${esc(s.name)}<small>${S.hw.filter(x=>x.sid===s.id&&up(x)&&!done[x.id]).length}</small></button>`).join('')}
   ${head?'<button class="chip" data-act="addSubj">+ предмет</button>':''}</div>`;
   const list=S.hw.filter(x=>filter==='all'||x.sid===filter).sort((a,b)=>a.due.localeCompare(b.due)||a.title.localeCompare(b.title));
-  const over=list.filter(x=>!up(x)),overOpen=over.filter(x=>!done[x.id]);
-  let any=overOpen.length>0;
+  const over=list.filter(x=>!up(x)),overOpen=over.filter(x=>!done[x.id]);let any=overOpen.length>0;
   if(any)h+='<h3 class="g bad">Просрочено</h3>'+overOpen.map(card).join('');
   for(const [t,f] of [['Сегодня',d=>d===0],['Завтра',d=>d===1],['На этой неделе',d=>d>=2&&d<=7],['Позже',d=>d>7]]){
     const l=list.filter(x=>up(x)&&f(days(x.due)));if(l.length){any=true;h+=`<h3 class="g">${t}</h3>`+l.map(card).join('')}}
@@ -181,7 +160,7 @@ function render(){
 function card(x){
   const s=S.subjects.find(y=>y.id===x.sid),d=days(x.due),dn=!!done[x.id];
   const links=(x.links||[]).map(u=>safeUrl(u)?`<a href="${esc(u)}" target="_blank" rel="noopener">🔗 ${esc(u.replace(/^https?:\/\//,'').slice(0,40))}</a>`:'').join('');
-  const files=(x.files||[]).map(f=>`<a href="${esc(fileUrl(f))}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a>`).join('');
+  const files=(x.files||[]).map(f=>`<a href="#" data-act="openFile" data-id="${esc(f.id)}" data-name="${esc(f.name)}">📎 ${esc(f.name)}</a>`).join('');
   return `<article class="card ${dn?'dn':''}"><input type="checkbox" data-act="toggle" data-id="${x.id}" ${dn?'checked':''}>
   <div class="bd"><span class="tag" style="--c:${color(s?.name)}">${esc(s?.name||'Без предмета')}</span><span class="due ${d<0&&!dn?'bad':''}">до ${fmt(x.due)} · ${dl(d)}</span>
   <h4>${esc(x.title)}</h4>${x.desc?`<div class="desc">${esc(x.desc)}</div>`:''}${links||files?`<div class="att">${files}${links}</div>`:''}
@@ -195,91 +174,92 @@ function hwForm(){
   <label class="f">Сдать до<input type="date" id="f_d" value="${esc(o.due)}"></label>
   <label class="f">Подробности<textarea id="f_x">${esc(o.desc)}</textarea></label>
   <label class="f">Ссылки (по одной в строке)<textarea id="f_l" placeholder="https://...">${esc((o.links||[]).join('\n'))}</textarea></label>
-  <div class="f" style="margin-top:10px;font-size:13px;color:var(--mut)">Файлы (до 15 МБ)</div><div class="att" id="f_files"></div>
+  <div class="f" style="margin-top:10px;font-size:13px;color:var(--mut)">Файлы (до 3 МБ, большие — ссылкой)</div><div class="att" id="f_files"></div>
   <input type="file" id="f_up" multiple style="margin-top:6px">
   <div class="row"><button id="f_c">Отмена</button><button class="p" data-act="saveHw" id="f_ok">Сохранить</button></div>`);
   drawFiles();$('#f_c').onclick=closeDlg;
-  $('#f_up').onchange=async e=>{
-    const b=$('#f_ok');b.disabled=true;b.textContent='Загрузка файла…';
+  $('#f_up').onchange=async e=>{const b=$('#f_ok');b.disabled=true;b.textContent='Загрузка файла…';
     for(const f of e.target.files){try{ed.files.push(await uploadFile(f))}catch(x){toast('Не загрузился '+f.name+': '+(x.message||x))}}
-    e.target.value='';b.disabled=false;b.textContent='Сохранить';drawFiles();
-  };
+    e.target.value='';b.disabled=false;b.textContent='Сохранить';drawFiles()};
 }
-const drawFiles=()=>{const e=$('#f_files');if(e)e.innerHTML=ed.files.length?ed.files.map((f,i)=>`<a href="${esc(fileUrl(f))}" target="_blank" rel="noopener">📎 ${esc(f.name)}</a><button class="s d" data-act="rmFile" data-i="${i}">✕</button>`).join(''):'<span style="font-size:13px;color:var(--mut)">нет вложений</span>'};
+const drawFiles=()=>{const e=$('#f_files');if(e)e.innerHTML=ed.files.length?ed.files.map((f,i)=>`<span class="chip" style="padding:4px 9px">📎 ${esc(f.name)}</span><button class="s d" data-act="rmFile" data-i="${i}">✕</button>`).join(''):'<span style="font-size:13px;color:var(--mut)">нет вложений</span>'};
+function groupsDlg(){
+  openDlg(`<h3 style="margin:0 0 8px">Мои группы</h3>${myGroups.map(g=>`<div class="mem"><span>${esc(g.name||g.code)} <small style="color:var(--mut)">${esc(g.code)}</small>${g.hc?'<span class="badge">староста</span>':''}${g.code===act?' ✓':''}</span><button class="s" data-act="pick" data-id="${g.code}">Открыть</button></div>`).join('')||'<div class="hint">Пока нет</div>'}
+  <div class="row"><button data-act="join">Ввести код группы</button><button data-act="newGroup">+ Создать группу</button></div>
+  <div class="row"><button data-act="joinHead">Войти как староста</button><button class="p" id="g_c">Закрыть</button></div>`);$('#g_c').onclick=closeDlg;
+}
 function settings(){
-  openDlg(`<h3 style="margin:0 0 6px">Настройки</h3>
-  <div class="mem"><span>Группа: <b>${esc(S.name)}</b></span><button class="s" data-act="renGroup">✎</button></div>
-  <h3 class="g">Предметы</h3>
-  ${S.subjects.map(s=>`<div class="mem"><span>${esc(s.name)}</span><button class="s" data-act="renSubj" data-id="${s.id}">✎</button><button class="s d" data-act="delSubj" data-id="${s.id}">✕</button></div>`).join('')||'<div class="hint">Пока нет</div>'}
-  <div class="row"><button data-act="addSubj">+ Добавить предмет</button></div>
-  <h3 class="g">Студенты</h3>
-  <p style="font-size:14px;color:var(--mut);margin:0">Студенты просто открывают ссылку на сайт, входить никуда не нужно.</p>
-  <div class="row"><button data-act="copyLink">🔗 Скопировать ссылку для студентов</button></div>
-  <div class="row"><button class="d" data-act="logout">Выйти из режима старосты</button><button class="p" id="g_c">Закрыть</button></div>`);
-  $('#g_c').onclick=closeDlg;
+  const g=cur(),head=isHead();
+  openDlg(`<h3 style="margin:0 0 6px">${esc(S.name)}</h3>
+  <div style="font-size:13px;color:var(--mut)">Код группы для студентов:</div><div class="code">${esc(g.code)}</div>
+  ${head?`<div style="font-size:13px;color:var(--mut);margin-top:10px">Ваш код старосты (никому не показывайте):</div><div class="code">${esc(g.hc)}</div>`:''}
+  ${head?`<div class="mem"><span>Название группы</span><button class="s" data-act="renGroup">✎</button></div>
+  <h3 class="g">Предметы</h3>${S.subjects.map(s=>`<div class="mem"><span>${esc(s.name)}</span><button class="s" data-act="renSubj" data-id="${s.id}">✎</button><button class="s d" data-act="delSubj" data-id="${s.id}">✕</button></div>`).join('')||'<div class="hint">Пока нет</div>'}
+  <div class="row"><button data-act="addSubj">+ Добавить предмет</button></div>`:''}
+  <div class="row"><button class="d" data-act="leave">Выйти из группы</button><button class="p" id="g_c">Закрыть</button></div>`);$('#g_c').onclick=closeDlg;
 }
-function loginDlg(){
-  if(demo)return toast('Это демо-режим: вы уже староста');
-  openDlg(`<h3 style="margin:0 0 6px">Вход для старосты</h3>
-  <p style="font-size:14px;color:var(--mut);margin:0">Нужен токен GitHub с правом записи в репозиторий <b>${esc(OWNER+'/'+REPO)}</b>:</p>
-  <ol><li>Откройте <a class="l" href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">создание токена</a>.</li>
-  <li>Repository access → <i>Only select repositories</i> → этот репозиторий.</li>
-  <li>Permissions → Repository permissions → <b>Contents</b> → переключите на <b>Read and write</b> (по умолчанию там «No access»).</li>
-  <li>Generate token, скопируйте и вставьте сюда.</li></ol>
-  <label class="f">Токен<input type="text" class="tok" id="tk" autocomplete="off" placeholder="github_pat_..."></label>
-  <div class="row"><button id="tk_c">Отмена</button><button class="p" data-act="doLogin">Войти</button></div>`);
-  $('#tk_c').onclick=closeDlg;
+function codesDlg(code,hc){
+  openDlg(`<h3 style="margin:0 0 6px">Группа создана ✅</h3>
+  <div style="font-size:13px;color:var(--mut)">Код для студентов (раздайте всем):</div><div class="code">${esc(code)}</div>
+  <div style="font-size:13px;color:var(--mut);margin-top:12px">Код старосты (только для вас и других старост):</div><div class="code">${esc(hc)}</div>
+  <p style="font-size:13px;color:var(--mut)">Запишите оба кода. Код старосты нельзя восстановить.</p><div class="row"><button class="p" id="g_c">Понятно</button></div>`);$('#g_c').onclick=closeDlg;
 }
 
 /* ---------- Действия ---------- */
+function setGroup(code,hc){const i=myGroups.findIndex(g=>g.code===code);const rec={code,hc:hc||myGroups[i]?.hc||'',name:''};
+  i>=0?myGroups[i]={...myGroups[i],...(hc?{hc}:{})}:myGroups.push(rec);act=code;saveG();lastTs=0;lastW=0;S={name:'',subjects:[],hw:[]};filter='all'}
+async function findGroup(raw){
+  let last=null;
+  for(const c of cands(raw)){const t=await kvGet('g-'+c);if(t!==null)return {code:c,data:norm(JSON.parse(t))};last=c}
+  return null;
+}
 const acts={
-  refresh:async()=>{await load();toast(err?'Не удалось обновить':'Обновлено')},
-  filter:b=>{filter=b.dataset.id;render()},
-  past:()=>{past=!past;render()},
+  diag,refresh:async()=>{await load();toast(err?'Не удалось обновить':'Обновлено')},
+  filter:b=>{filter=b.dataset.id;render()},past:()=>{past=!past;render()},
   toggle:b=>{b.checked?done[b.dataset.id]=true:delete done[b.dataset.id];ls.set('done',JSON.stringify(done));render()},
-  login:loginDlg,settings,
-  doLogin:async()=>{
-    const t=$('#tk').value.trim();if(!t)return;
-    try{
-      const r=await fetch(`https://api.github.com/repos/${OWNER}/${REPO}`,{cache:'no-store',headers:{Accept:'application/vnd.github+json',Authorization:'Bearer '+t}});
-      if(r.status===401)return toast('Токен не подошёл (неверный или истёк)');
-      if(r.status===404)return toast('У токена нет доступа к этому репозиторию — выберите его при создании токена');
-      if(!r.ok)return toast('Ошибка GitHub: '+await errText(r));
-      const j=await r.json();
-      if(!j.permissions?.push)return toast('У токена нет права записи: нужно Contents → Read and write');
-      token=t;BR=j.default_branch||BR;ls.set('ghtoken',t);ls.set('ghbranch',BR);
-      await load();
-      if(sha===null){ // data.json ещё нет: заодно проверяем право записи
-        try{await mutate(()=>{},'Создание data.json')}catch(e){logout();ls.del('ghbranch');BR=CFG.branch||'';return toast('Токен не подошёл: '+(e.message||e))}
-      }
-      closeDlg();toast('Вы вошли как староста');
-    }catch(e){toast('Нет связи с GitHub: '+e.message)}},
-  logout:()=>{logout();closeDlg();toast('Вы вышли')},
-  copyLink:async()=>{const u=location.origin+location.pathname;try{await navigator.clipboard.writeText(u);toast('Ссылка скопирована')}catch(e){await ask({title:'Ссылка для студентов',label:'Скопируйте и отправьте',value:u,ok:'Закрыть',cancel:false})}},
-  renGroup:async()=>{const n=await ask({title:'Название группы',label:'Например: 1 курс, 103 группа',value:S.name});if(n){await run(mutate(x=>{x.name=n},'Название группы'));settings()}},
-  addSubj:async()=>{const n=await ask({title:'Новый предмет',label:'Название (например, Математический анализ)',ok:'Добавить'});
-    if(n){await run(mutate(x=>{x.subjects.push({id:rid(),name:n})},'Новый предмет'));if(isHead())render()}},
-  renSubj:async b=>{const s=S.subjects.find(y=>y.id===b.dataset.id);const n=await ask({title:'Переименовать',label:'Название',value:s.name});
-    if(n){await run(mutate(x=>{x.subjects.find(y=>y.id===s.id).name=n}));settings()}},
+  groups:groupsDlg,settings,
+  pick:async b=>{act=b.dataset.id;saveG();closeDlg();S={name:'',subjects:[],hw:[]};lastTs=0;await load()},
+  join:async()=>{const c=await ask({title:'Вход в группу',label:'Код группы (6 символов)',ok:'Войти'});if(!c)return;
+    try{const f=await findGroup(c);if(!f)return toast('Группа с таким кодом не найдена. Проверьте код.');
+      setGroup(f.code);const g=cur();g.name=f.data.name;saveG();S=f.data;closeDlg();await load();toast('Вы в группе «'+f.data.name+'»')}
+    catch(e){toast('Нет связи с хранилищем: '+e.message)}},
+  joinHead:()=>{openDlg(`<h3 style="margin:0 0 6px">Вход для старосты</h3>
+    <label class="f">Код группы<input type="text" id="jc" autocomplete="off" autocapitalize="characters"></label>
+    <label class="f">Код старосты<input type="text" id="jh" autocomplete="off" autocapitalize="characters"></label>
+    <div class="row"><button id="jx">Отмена</button><button class="p" data-act="doJoinHead">Войти</button></div>`);$('#jx').onclick=closeDlg},
+  doJoinHead:async()=>{const hcs=cands($('#jh').value);if(!hcs.length||!$('#jc').value.trim())return;
+    try{const f=await findGroup($('#jc').value);if(!f)return toast('Группа с таким кодом не найдена');
+      let ok=null;for(const h of hcs){if(f.data.hhash&&await hash(h)===f.data.hhash){ok=h;break}}
+      if(!ok)return toast('Код старосты не подошёл');
+      setGroup(f.code,ok);cur().name=f.data.name;saveG();S=f.data;closeDlg();await load();toast('Вы вошли как староста')}
+    catch(e){toast('Нет связи с хранилищем: '+e.message)}},
+  newGroup:async()=>{const name=await ask({title:'Новая группа',label:'Название (например, 1 курс, 103 группа)',ok:'Создать'});if(!name)return;
+    try{let code='';for(let i=0;i<5;i++){code=gen(6);if(await kvGet('g-'+code)===null)break;code=''}
+      if(!code)return toast('Не удалось подобрать код, попробуйте ещё раз');
+      const hc=gen(8);await kvPut('g-'+code,JSON.stringify({name,hhash:await hash(hc),subjects:[],hw:[],ts:Date.now()}));
+      setGroup(code,hc);cur().name=name;saveG();S={name,hhash:'',subjects:[],hw:[],ts:0};loaded=true;render();codesDlg(code,hc);load()}
+    catch(e){toast('Не удалось создать группу: '+e.message+'. Нажмите «Проверить связь».')}},
+  leave:async()=>{if(!await ask({title:'Выйти из группы?',text:isHead()?'Сохраните код старосты: без него вы не сможете вернуться к редактированию.':'',input:false,ok:'Выйти'}))return;
+    myGroups=myGroups.filter(g=>g.code!==act);act=myGroups[0]?.code||'';saveG();S={name:'',subjects:[],hw:[]};closeDlg();await load()},
+  renGroup:async()=>{const n=await ask({title:'Название группы',value:S.name});if(n&&await run(mutate(x=>{x.name=n}))){cur().name=n;saveG();settings()}},
+  addSubj:async()=>{const n=await ask({title:'Новый предмет',label:'Название (например, Математический анализ)',ok:'Добавить'});if(n){await run(mutate(x=>{x.subjects.push({id:rid(),name:n})}));if($('#dlg').open)settings()}},
+  renSubj:async b=>{const s=S.subjects.find(y=>y.id===b.dataset.id),n=await ask({title:'Переименовать',value:s.name});if(n){await run(mutate(x=>{x.subjects.find(y=>y.id===s.id).name=n}));settings()}},
   delSubj:async b=>{const s=S.subjects.find(y=>y.id===b.dataset.id),c=S.hw.filter(y=>y.sid===s.id).length;
-    if(await ask({title:`Удалить «${s.name}»?`,text:c?`Вместе с предметом удалятся задания: ${c}.`:'',input:false,ok:'Удалить'})){
-      await run(mutate(x=>{x.subjects=x.subjects.filter(y=>y.id!==s.id);x.hw=x.hw.filter(y=>y.sid!==s.id)}));settings()}},
+    if(await ask({title:`Удалить «${s.name}»?`,text:c?`Вместе с предметом удалятся задания: ${c}.`:'',input:false,ok:'Удалить'})){await run(mutate(x=>{x.subjects=x.subjects.filter(y=>y.id!==s.id);x.hw=x.hw.filter(y=>y.sid!==s.id)}));settings()}},
   newHw:()=>{if(!S.subjects.length)return toast('Сначала добавьте предмет');
     ed={sid:filter!=='all'?filter:S.subjects[0].id,title:'',desc:'',links:[],files:[],due:new Date(Date.now()+864e5).toLocaleDateString('sv')};hwForm()},
   editHw:b=>{const x=S.hw.find(y=>y.id===b.dataset.id);ed={...x,links:[...(x.links||[])],files:[...(x.files||[])]};hwForm()},
   rmFile:b=>{ed.files.splice(+b.dataset.i,1);drawFiles()},
-  saveHw:async()=>{
-    const title=$('#f_t').value.trim(),due=$('#f_d').value;if(!title||!due)return toast('Укажите название и срок');
+  saveHw:async()=>{const title=$('#f_t').value.trim(),due=$('#f_d').value;if(!title||!due)return toast('Укажите название и срок');
     const rec={id:ed.id||rid(),sid:$('#f_s').value,title,due,desc:$('#f_x').value.trim(),links:$('#f_l').value.split('\n').map(x=>x.trim()).filter(Boolean),files:ed.files};
     const b=$('#f_ok');b.disabled=true;b.textContent='Сохраняю…';
-    await run(mutate(x=>{const i=x.hw.findIndex(y=>y.id===rec.id);i>=0?x.hw[i]=rec:x.hw.push(rec)},'Задание: '+title),'Сохранено');
-    if(!err||demo)closeDlg();else{b.disabled=false;b.textContent='Сохранить'}},
-  delHw:async b=>{const x=S.hw.find(y=>y.id===b.dataset.id);
-    if(await ask({title:'Удалить задание?',text:x.title,input:false,ok:'Удалить'}))await run(mutate(n=>{n.hw=n.hw.filter(y=>y.id!==x.id)},'Удалено'),'Удалено')},
+    if(await run(mutate(x=>{const i=x.hw.findIndex(y=>y.id===rec.id);i>=0?x.hw[i]=rec:x.hw.push(rec)}),'Сохранено'))closeDlg();else{b.disabled=false;b.textContent='Сохранить'}},
+  delHw:async b=>{const x=S.hw.find(y=>y.id===b.dataset.id);if(await ask({title:'Удалить задание?',text:x.title,input:false,ok:'Удалить'}))await run(mutate(n=>{n.hw=n.hw.filter(y=>y.id!==x.id)}),'Удалено')},
+  openFile:b=>openFile(b.dataset.id,b.dataset.name),
 };
-document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act])acts[b.dataset.act](b)});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-act]');if(b&&acts[b.dataset.act]){if(b.tagName==='A')e.preventDefault();acts[b.dataset.act](b)}});
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!$('#dlg').open)load()});
-setInterval(()=>{if(!document.hidden&&!$('#dlg').open&&!busy)load()},120000);
+setInterval(()=>{if(!document.hidden&&!$('#dlg').open&&!busy)load()},60000);
 load();
 </script>
 </body>
