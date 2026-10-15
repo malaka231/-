@@ -593,7 +593,68 @@
      "link": ""
     }
    ],
-   "drafts": []
+   "drafts": [
+    {
+     "id": "tb8040636",
+     "src": "tg:1049127911:20",
+     "title": "Файл из Telegram",
+     "desc": "",
+     "sid": null,
+     "sg": 0,
+     "due": null,
+     "links": [],
+     "files": [
+      {
+       "name": "photo-20.jpg",
+       "path": "files/tg-1049127911-20-photo-20.jpg"
+      }
+     ],
+     "text": "",
+     "from": "malaka",
+     "ts": "2026-10-15T20:52:49Z",
+     "ai": false
+    },
+    {
+     "id": "t4538f815",
+     "src": "tg:1049127911:21",
+     "title": "Файл из Telegram",
+     "desc": "",
+     "sid": null,
+     "sg": 0,
+     "due": null,
+     "links": [],
+     "files": [
+      {
+       "name": "photo-21.jpg",
+       "path": "files/tg-1049127911-21-photo-21.jpg"
+      }
+     ],
+     "text": "",
+     "from": "malaka",
+     "ts": "2026-10-15T20:53:05Z",
+     "ai": false
+    },
+    {
+     "id": "tcadec05b",
+     "src": "tg:1049127911:22",
+     "title": "#дз",
+     "desc": "",
+     "sid": null,
+     "sg": 0,
+     "due": null,
+     "links": [],
+     "files": [
+      {
+       "name": "photo-22.jpg",
+       "path": "files/tg-1049127911-22-photo-22.jpg"
+      }
+     ],
+     "text": "#дз",
+     "from": "malaka",
+     "ts": "2026-10-15T20:53:20Z",
+     "ai": false
+    }
+   ]
   }
  }
 }
