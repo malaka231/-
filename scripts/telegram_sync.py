@@ -23,7 +23,7 @@ def ids(s):
 BOT = env('TG_BOT_TOKEN')
 GROUP = env('GROUP_CODE').upper()
 KEY = env('GEMINI_API_KEY')
-MODEL = env('GEMINI_MODEL', 'gemini-3.5-flash-lite')
+MODEL = env('GEMINI_MODEL', 'gemini-3.8-flash')
 ALLOWED = ids(env('TG_ALLOWED_IDS'))   # Telegram ID старост
 CHATS = ids(env('TG_CHAT_ID'))         # необязательно: ограничить конкретным чатом/каналом
 TAG = re.compile(r'#(?:дз|hw|домашка|домашнее)', re.I)
