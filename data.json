@@ -156,7 +156,7 @@
      ]
     }
    ],
-   "ts": 1792097539327,
+   "ts": 1792097913387,
    "schedule": [
     {
      "id": "d1",
@@ -594,26 +594,6 @@
     }
    ],
    "drafts": [
-    {
-     "id": "tb8040636",
-     "src": "tg:1049127911:20",
-     "title": "Файл из Telegram",
-     "desc": "",
-     "sid": null,
-     "sg": 0,
-     "due": null,
-     "links": [],
-     "files": [
-      {
-       "name": "photo-20.jpg",
-       "path": "files/tg-1049127911-20-photo-20.jpg"
-      }
-     ],
-     "text": "",
-     "from": "malaka",
-     "ts": "2026-10-15T20:52:49Z",
-     "ai": false
-    },
     {
      "id": "t4538f815",
      "src": "tg:1049127911:21",
