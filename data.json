@@ -593,7 +593,63 @@
      "link": ""
     }
    ],
-   "drafts": []
+   "drafts": [
+    {
+     "id": "t2d980592",
+     "src": "tg:1049127911:23",
+     "title": "Файл из Telegram",
+     "desc": "",
+     "sid": null,
+     "sg": 0,
+     "due": null,
+     "links": [],
+     "files": [
+      {
+       "name": "photo-23.jpg",
+       "path": "files/tg-1049127911-23-photo-23.jpg"
+      }
+     ],
+     "text": "",
+     "from": "malaka",
+     "ts": "2026-10-15T21:02:06Z",
+     "ai": false
+    },
+    {
+     "id": "tbd36cea7",
+     "src": "tg:1049127911:24",
+     "title": "Файл из Telegram",
+     "desc": "",
+     "sid": null,
+     "sg": 0,
+     "due": null,
+     "links": [],
+     "files": [
+      {
+       "name": "photo-24.jpg",
+       "path": "files/tg-1049127911-24-photo-24.jpg"
+      }
+     ],
+     "text": "",
+     "from": "malaka",
+     "ts": "2026-10-15T21:02:06Z",
+     "ai": false
+    },
+    {
+     "id": "t5ef03a4e",
+     "src": "tg:1049127911:25",
+     "title": "#дз",
+     "desc": "",
+     "sid": null,
+     "sg": 0,
+     "due": null,
+     "links": [],
+     "files": [],
+     "text": "#дз",
+     "from": "malaka",
+     "ts": "2026-10-15T21:02:15Z",
+     "ai": false
+    }
+   ]
   }
  }
 }
