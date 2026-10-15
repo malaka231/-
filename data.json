@@ -156,7 +156,7 @@
      ]
     }
    ],
-   "ts": 1792097919154,
+   "ts": 1792098199568,
    "schedule": [
     {
      "id": "d1",
@@ -632,21 +632,6 @@
      "text": "",
      "from": "malaka",
      "ts": "2026-10-15T21:02:06Z",
-     "ai": false
-    },
-    {
-     "id": "t5ef03a4e",
-     "src": "tg:1049127911:25",
-     "title": "#дз",
-     "desc": "",
-     "sid": null,
-     "sg": 0,
-     "due": null,
-     "links": [],
-     "files": [],
-     "text": "#дз",
-     "from": "malaka",
-     "ts": "2026-10-15T21:02:15Z",
      "ai": false
     }
    ]
