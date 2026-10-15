@@ -20,7 +20,7 @@ def ids(s):
     return {int(x) for x in re.split(r'[,\s;]+', s) if re.fullmatch(r'-?\d+', x)}
 
 
-BOT = env('')
+BOT = env('TG_BOT_TOKEN')
 GROUP = env('GROUP_CODE').upper()
 KEY = env('GEMINI_API_KEY')
 MODEL = env('GEMINI_MODEL', 'gemini-3.5-flash-lite')
