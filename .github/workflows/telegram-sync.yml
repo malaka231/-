@@ -1,17 +1,17 @@
 name: Telegram → черновики домашек
-
+ 
 on:
   schedule:
-    - cron: '*/10 * * * *'   # каждые ~10 минут (GitHub может задерживать запуск)
+    - cron: '7 * * * *'      # раз в час, в 7 минут каждого часа (GitHub может задерживать запуск на 5–30 минут)
   workflow_dispatch:         # ручной запуск: вкладка Actions → Run workflow
-
+ 
 concurrency:
   group: telegram-sync
   cancel-in-progress: false
-
+ 
 permissions:
   contents: write
-
+ 
 jobs:
   sync:
     runs-on: ubuntu-latest
@@ -28,3 +28,7 @@ jobs:
           TG_CHAT_ID: ${{ vars.TG_CHAT_ID }}
           GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
           TG_MAX_AGE_HOURS: ${{ vars.TG_MAX_AGE_HOURS }}
+          TG_ONLY_ALLOWED: ${{ vars.TG_ONLY_ALLOWED }}
+          TG_AUTO_PUBLISH: ${{ vars.TG_AUTO_PUBLISH }}
+          TG_AUTO_MIN_CONFIDENCE: ${{ vars.TG_AUTO_MIN_CONFIDENCE }}
+          GEMINI_FALLBACK_MODELS: ${{ vars.GEMINI_FALLBACK_MODELS }}
