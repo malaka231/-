@@ -145,7 +145,7 @@ const CYR_KEY={'Й':'Q','Ц':'W','У':'E','К':'R','Е':'T','Н':'Y','Г':'U','�
 function cands(raw){const u=String(raw||'').toUpperCase().replace(/[^A-ZА-ЯЁ0-9]/g,'');const m=t=>[...u].map(c=>t[c]||c).join('');return [...new Set([u,m(CYR_LOOK),m(CYR_KEY)])].filter(Boolean)}
 const IC={cal:'<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',list:'<path d="M9.5 6.5H20M9.5 12H20M9.5 17.5H20"/><path d="M3.8 6.4l1.2 1.2 2.1-2.4M3.8 11.9l1.2 1.2 2.1-2.4M3.8 17.4l1.2 1.2 2.1-2.4"/>',people:'<circle cx="9" cy="8.2" r="3.2"/><path d="M3 19.5c.6-3.3 3-5.2 6-5.2s5.4 1.9 6 5.2"/><circle cx="17.2" cy="9" r="2.4"/><path d="M16.6 14.4c2.4.2 4 1.8 4.4 4.4"/>',plus:'<path d="M12 5v14M5 12h14"/>',ref:'<path d="M20 11.5a8 8 0 1 0-2.4 5.6"/><path d="M20.3 4.8v6.2h-6.2"/>',chev:'<path d="M6.5 9.5l5.5 5.5 5.5-5.5"/>'};
 const ic=n=>`<svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${IC[n]}</svg>`;
-
+ 
 /* ---------- Расписание по умолчанию: 1 курс, 103 группа, осень 2026 ---------- */
 const P={1:['09:00','10:35'],2:['10:50','12:25'],3:['13:10','14:45'],4:['14:55','16:30'],5:['16:40','18:15']};
 function def103(){
@@ -182,7 +182,7 @@ function def103(){
 }
 const defFor=name=>/103/.test(name||'')?def103():[];
 const sched=()=>S.schedule??defFor(S.name);
-
+ 
 /* ---------- Недели и подгруппы ---------- */
 const mondayOf=d=>{const x=new Date(d);x.setHours(0,0,0,0);x.setDate(x.getDate()-((x.getDay()+6)%7));return x};
 function weekType(d){const ref=new Date((S.wref||'2026-08-31')+'T00:00:00');const w=Math.round((mondayOf(d)-mondayOf(ref))/6048e5);return ((w%2)+2)%2===0?'up':'down'}
@@ -190,7 +190,7 @@ function initView(){const now=new Date(),dow=now.getDay();if(dow===0){const n=ne
 const sgPref=()=>ls.get('sg_'+act)||'';
 const sgText=p=>p==='1'?'1 подгруппа':p==='2'?'2 подгруппа':p==='all'?'Все подгруппы':'не выбрана';
 const hwVisible=x=>{const p=sgPref();return !p||p==='all'||!x.sg||String(x.sg)===p};
-
+ 
 /* ---------- Окна ---------- */
 function sheet({title,left='Отмена',right='',rightAct='',body=''}){
   openDlg(`<div class="grab"></div><div class="sh"><button class="tl" id="sh_l">${esc(left)}</button><b>${esc(title)}</b>${right?`<button class="tl strong" id="sh_r" ${rightAct?`data-act="${rightAct}"`:''}>${esc(right)}</button>`:'<span style="min-width:70px"></span>'}</div>${body}`);
@@ -209,7 +209,7 @@ function confirmSheet(title,text,okLabel='Удалить'){
     $('#sh_l').onclick=()=>{closeDlg();res(false)};$('#cf_o').onclick=()=>{closeDlg();res(true)};
   });
 }
-
+ 
 /* ---------- GitHub как хранилище (без изменений) ---------- */
 const NET_MS=CFG.netMs||9000;
 function fetchT(url,opt={},ms=NET_MS){const c=new AbortController(),t=setTimeout(()=>c.abort(),ms);return fetch(url,{...opt,signal:c.signal}).finally(()=>clearTimeout(t))}
@@ -287,7 +287,7 @@ async function uploadFile(f){
   return {name:f.name,path};
 }
 async function diag(){try{await loadDB();toast(demo?'Демо-режим: сайт открыт не с github.io, данные только в этом браузере':`✅ GitHub отвечает (${OWNER}/${REPO}), групп: ${Object.keys(DB.groups).length}`)}catch(e){toast('❌ '+e.message)}}
-
+ 
 /* ---------- Экраны ---------- */
 const DAYS=['Пн','Вт','Ср','Чт','Пт','Сб'],DAYF=['Понедельник','Вторник','Среда','Четверг','Пятница','Суббота'];
 let scrollKeep=null;
@@ -364,8 +364,10 @@ function row(x){
 function draftRow(d){
   const s=S.subjects.find(y=>y.id===d.sid),ready=!!(s&&d.due),bad=t=>`<span style="color:var(--red)">${t}</span>`;
   const when=d.due?`до ${fmt(d.due)}`:bad('срок не указан');
+  const rep=d.replaces?S.hw.find(y=>y.id===d.replaces):null;
   return `<div class="drow"><div class="ht">${esc(d.title)}${d.sg?`<span class="pill t" style="margin-left:6px">${d.sg} п/г</span>`:''}</div>
   <div class="hm">${s?`<span class="dot" style="background:${color(s.name)}"></span>${esc(s.name)}`:bad('предмет не определён')} · ${when}</div>
+  ${rep?`<div class="hm" style="color:var(--tint)">Обновляет задание «${esc(rep.title)}»</div>`:''}${d.dueNote?`<div class="hm">🗓 Срок по расписанию: ${esc(d.dueNote)}</div>`:''}${(d.review||[]).length?`<div class="hm bad">Проверьте: ${esc(d.review.join(', '))}</div>`:''}
   ${d.desc?`<div class="desc" style="color:var(--ink)">${esc(d.desc)}</div>`:''}
   ${d.ocr?`<div class="desc"><b>С фото:</b> ${esc(d.ocr)}</div>`:''}
   ${d.text&&d.text!==d.title?`<div class="desc">«${esc(d.text)}»${d.from?` — ${esc(d.from)}`:''}</div>`:''}
@@ -432,7 +434,7 @@ function groupsDlg(){
   sheet({title:head?'Все группы':'Мои группы',left:'Закрыть',body:`<div class="list">${all.map(g=>`<button class="cell" data-act="pick" data-id="${g.code}"><span>${esc(g.name||g.code)} <small style="color:var(--mut)">${esc(g.code)}</small></span><span class="v" style="color:var(--tint)">${g.code===act?'✓':''}</span></button>`).join('')||'<div class="empty">Пока нет групп</div>'}</div>
   <div class="list" style="margin-top:14px"><button class="cell t" data-act="join">Ввести код группы</button>${head?'<button class="cell t" data-act="newGroup">Создать группу</button>':'<button class="cell t" data-act="login">Я староста</button>'}</div>`});
 }
-
+ 
 /* ---------- Действия ---------- */
 const setActive=async code=>{act=code;ls.set('act',act);S={name:'',subjects:[],hw:[]};filter='all';viewWeek='';await load()};
 const acts={
@@ -489,14 +491,14 @@ const acts={
     ed={sid:filter!=='all'?filter:S.subjects[0].id,sg:0,title:'',desc:'',links:[],files:[],due:new Date(Date.now()+864e5).toLocaleDateString('sv')};hwForm()},
   editHw:b=>{const x=S.hw.find(y=>y.id===b.dataset.id);ed={...x,sg:x.sg||0,links:[...(x.links||[])],files:[...(x.files||[])]};hwForm()},
   editDraft:b=>{const d=(S.drafts||[]).find(y=>y.id===b.dataset.id);if(!d)return;if(!S.subjects.length)return toast('Сначала добавьте предмет');
-    ed={draftId:d.id,src:d.src,sid:S.subjects.some(y=>y.id===d.sid)?d.sid:S.subjects[0].id,sg:d.sg||0,title:d.title,desc:d.desc||'',links:[...(d.links||[])],files:[...(d.files||[])],due:d.due||new Date(Date.now()+864e5).toLocaleDateString('sv')};hwForm()},
+    ed={draftId:d.id,src:d.src,replaces:d.replaces,sid:S.subjects.some(y=>y.id===d.sid)?d.sid:S.subjects[0].id,sg:d.sg||0,title:d.title,desc:d.desc||'',links:[...(d.links||[])],files:[...(d.files||[])],due:d.due||new Date(Date.now()+864e5).toLocaleDateString('sv')};hwForm()},
   acceptDraft:async b=>{const d=(S.drafts||[]).find(y=>y.id===b.dataset.id);if(!d)return;
     if(!S.subjects.some(y=>y.id===d.sid)||!d.due)return acts.editDraft(b);
-    await run(mutate(x=>{x.hw.push({id:rid(),sid:d.sid,sg:d.sg||0,title:d.title,due:d.due,desc:d.desc||'',links:d.links||[],files:d.files||[],src:d.src});x.drafts=(x.drafts||[]).filter(y=>y.id!==d.id)}),'Задание добавлено')},
+    await run(mutate(x=>{const rec={sid:d.sid,sg:d.sg||0,title:d.title,due:d.due,desc:d.desc||'',links:d.links||[],files:d.files||[],src:d.src};const i=d.replaces?x.hw.findIndex(y=>y.id===d.replaces):-1;if(i>=0)x.hw[i]={...x.hw[i],...rec,id:x.hw[i].id,files:[...(x.hw[i].files||[]),...rec.files.filter(f=>!(x.hw[i].files||[]).some(g=>g.path===f.path))]};else x.hw.push({id:rid(),...rec});x.drafts=(x.drafts||[]).filter(y=>y.id!==d.id)}),d.replaces?'Задание обновлено':'Задание добавлено')},
   rejectDraft:async b=>{const id=b.dataset.id;await run(mutate(x=>{x.drafts=(x.drafts||[]).filter(y=>y.id!==id)}),'Черновик отклонён')},
   rmFile:b=>{ed.files.splice(+b.dataset.i,1);drawFiles()},
   saveHw:async()=>{const title=$('#f_t').value.trim(),due=$('#f_d').value;if(!title||!due)return toast('Укажите название и срок');
-    const rec={id:ed.id||rid(),sid:$('#f_s').value,sg:+ed.sg||0,title,due,desc:$('#f_x').value.trim(),links:$('#f_l').value.split('\n').map(x=>x.trim()).filter(Boolean),files:ed.files};if(ed.src)rec.src=ed.src;const dId=ed.draftId;
+    const rec={id:ed.id||rid(),sid:$('#f_s').value,sg:+ed.sg||0,title,due,desc:$('#f_x').value.trim(),links:$('#f_l').value.split('\n').map(x=>x.trim()).filter(Boolean),files:ed.files};if(ed.src)rec.src=ed.src;const dId=ed.draftId;if(ed.replaces&&S.hw.some(y=>y.id===ed.replaces))rec.id=ed.replaces;
     const b=$('#sh_r');b.disabled=true;
     if(await run(mutate(x=>{const i=x.hw.findIndex(y=>y.id===rec.id);i>=0?x.hw[i]=rec:x.hw.push(rec);if(dId)x.drafts=(x.drafts||[]).filter(y=>y.id!==dId)}),'Сохранено'))closeDlg();else b.disabled=false},
   delHw:async()=>{const id=ed.id;if(await confirmSheet('Удалить задание?',ed.title))await run(mutate(n=>{n.hw=n.hw.filter(y=>y.id!==id)}),'Удалено')},
