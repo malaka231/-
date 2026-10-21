@@ -174,20 +174,21 @@ def teacher_subject(text, subjects, schedule):
  
 # ---------- отбор сообщений ----------
 def accepted(chat, uid, text):
+    """Какие сообщения бот читает.
+    - Группы и супергруппы: ВСЕ сообщения ВСЕХ участников (нейросеть сама решает, где домашка).
+    - Если задан TG_CHAT_ID: только эти чаты (защита от случайного добавления бота в другие группы).
+    - Если TG_ONLY_ALLOWED=on: в группе слушаем только старост.
+    - Личные сообщения боту (пересылка): только от старост из TG_ALLOWED_IDS."""
     typ = chat.get('type')
-    if typ == 'private':                       # пересылка боту: только от старост
+    if typ == 'private':
         return uid in ALLOWED
-    if CHATS:
-        if chat['id'] not in CHATS:
-            return False
-        if typ == 'channel':
-            return True
-        return (uid in ALLOWED) if (ONLY_ALLOWED and ALLOWED) else True    # чат из списка: читаем всех
-    if typ == 'channel':
+    if CHATS and chat['id'] not in CHATS:
         return False
-    if ALLOWED:
+    if typ == 'channel':                       # у постов канала нет автора: нужен TG_CHAT_ID
+        return bool(CHATS)
+    if ONLY_ALLOWED and ALLOWED:
         return uid in ALLOWED
-    return bool(TAG.search(text))
+    return True
  
  
 def media_of(m):
